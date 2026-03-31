@@ -1210,6 +1210,7 @@ Many improvements and additional features are currently under development:
 - [x] GTSAM integration [WIP]
 - [ ] IMU integration
 - [ ] LIDAR integration
+- [ ] Integration of direct methods in the tracker
 - [x] XSt3r-based methods integration [WIP]
 - [x] Evaluation scripts 
 - [ ] More camera models
