@@ -32,6 +32,8 @@
 #include <limits>
 #include <stdexcept>
 
+#include <limits>
+
 namespace pangolin
 {
 
