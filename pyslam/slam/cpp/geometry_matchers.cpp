@@ -1093,9 +1093,13 @@ ProjectionMatcher::search_by_sim3(const KeyFramePtr &kf1, const KeyFramePtr &kf2
             }
         }
         if (best_dist1 < max_descriptor_distance) {
-            if (new_matches12[best_kd_idx1] == -1) {
-                new_matches21[idx2] = best_kd_idx1;
-            }
+            // Record the reciprocal candidate unconditionally. The previous
+            // guard `if (new_matches12[best_kd_idx1] == -1)` skipped recording
+            // exactly when the 1->2 pass had matched that kf1 point, so the
+            // agreement check reset every new match and expansion could only
+            // return the seed pairs. Mutual consistency is already enforced
+            // by the agreement check below.
+            new_matches21[idx2] = best_kd_idx1;
         }
     }
 
