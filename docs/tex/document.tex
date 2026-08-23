@@ -177,7 +177,7 @@ Another cornerstone of the framework is standardized dataset handling. By provid
 
 Functionally, pySLAM supports the full visual SLAM pipeline with monocular, stereo, and RGB-D configurations. It accommodates both traditional local features and deep-learning-based methods, and includes loop closure detection integrated with optimization backends like g2o\cite{g2o_kummerle} and GTSAM\cite{factor_graphs_for_robot_perception}. The framework also supports 3D reconstruction via different voxel grid models, TSDF\cite{dong2022ash} and emerging techniques like Gaussian Splatting\cite{bao20253d}, and integrates deep learning models for depth prediction and semantic scene understanding.
 
-Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture for modern end-to-end inference of 3D scenes from multiple views. The module supports both pairwise models (DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}) that process image pairs and perform global alignment, as well as multi-view models (Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, VGGT\cite{wang2025vggt}, robust VGGT\cite{vggt_robust}), Fast3R\cite{yang2025fast3r} that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
+Beyond SLAM, pySLAM also provides a unified \textit{ScenefromViews} architecture for modern feed-forward inference of 3D scenes from multiple views. The module supports both pairwise models (DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}) that process image pairs and perform global alignment, as well as multi-view models (Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, VGGT\cite{wang2025vggt}, robust VGGT\cite{vggt_robust}, and Fast3R\cite{yang2025fast3r}) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
 Together, these capabilities position pySLAM as a powerful research toolkit -- aiming to be a ``Swiss army knife`` for SLAM development, evaluation, and education. By streamlining reproducibility, supporting modular experimentation, and lowering the technical threshold for entry, pySLAM addresses some of the most persistent challenges in contemporary SLAM research.
 
@@ -217,7 +217,7 @@ The objective of this document is to present the pySLAM framework, its main feat
     \textbf{\protect\hyperlink{semantic-mapping}{semantic understanding}} of
     the scene, such as DeepLabv3\cite{chen2017rethinking}, Segformer\cite{xie2021segformer}, CLIP\cite{lin2023clip}, EOV-Seg\cite{eov_seg}, DETIC\cite{detic}, ODISE\cite{odise}, RFDETR\cite{rfdetr}, and YOLO\cite{redmon2016yolo,redmon2017yolo9000,redmon2018yolov3,bochkovskiy2020yolov4,jocher2020yolov5, wang2022yolov7, jocher2023yolov8, sapkota2025ultralytics}.
     
-    \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for end-to-end inference of 3D scenes from multiple views, supporting models such as DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}, Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, and VGGT\cite{wang2025vggt}.
+    \item A \textbf{\protect\hyperlink{scene-from-views}{Scene from Views}} module providing a unified interface for feed-forward inference of 3D scenes from multiple views, supporting models such as DUSt3R\cite{wang2023dust3r}, MASt3R\cite{leroy2024grounding}, Depth Anything V3\cite{depthanything3}, MV-DUSt3R\cite{tang2025mv}, VGGT\cite{wang2025vggt}, and Fast3R\cite{yang2025fast3r}.
     
     \item A modular sparse SLAM \textbf{\protect\hyperlink{cpp-core}{Core}}, implemented both in Python and C++ (with custom pybind11 bindings), allowing users to switch between high-performance/speed and high-flexibility modes.
     
@@ -491,11 +491,11 @@ A more in-depth presentation of the semantic mapping module is provided in~\cite
 \label{Fig:SceneFromViews}
 \end{figure}
 
-The diagram in Fig.~\ref{Fig:SceneFromViews} illustrates the architecture of the \textit{Scene from Views} module, which provides a unified interface for 3D scene reconstruction from multiple views. At its core, the \texttt{scene\_from\_views\_factory} instantiates specific reconstruction models based on the selected \texttt{SceneFromViewsType}, such as \texttt{DUST3R}\cite{wang2023dust3r}, \texttt{MAST3R}\cite{leroy2024grounding}, \texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MVDUST3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, \texttt{VGGT\_ROBUST}\cite{vggt_robust}, and \texttt{FAST3R}\cite{yang2025fast3r}.
+The diagram in Fig.~\ref{Fig:SceneFromViews} illustrates the architecture of the \textit{Scene from Views} module, which provides a unified interface for feed-forward 3D scene reconstruction from multiple views. At its core, the \texttt{scene\_from\_views\_factory} instantiates specific reconstruction models based on the selected \texttt{SceneFromViewsType}, such as \texttt{DUST3R}\cite{wang2023dust3r}, \texttt{MAST3R}\cite{leroy2024grounding}, \texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MVDUST3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, \texttt{VGGT\_ROBUST}\cite{vggt_robust}, and \texttt{FAST3R}\cite{yang2025fast3r}.
 
-Each type creates a corresponding implementation (e.g., \texttt{SceneFromViewsDust3r}, \texttt{SceneFromViewsMast3r}, \texttt{SceneFromViewsDepthAnythingV3}, \texttt{SceneFromViewsMvdust3r}, \texttt{SceneFromViewsVggt}, \texttt{SceneFromViewsVggtRobust}), \texttt{SceneFromViewsFast3r}, all inheriting from a common \texttt{SceneFromViewsBase}. This base class implements a unified three-step reconstruction pipeline: \texttt{preprocess\_images()} prepares input images for the specific model, \texttt{infer()} runs model inference, and \texttt{postprocess\_results()} converts raw model output to a standardized \texttt{SceneFromViewsResult} format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
+Each type creates a corresponding implementation (e.g., \texttt{SceneFromViewsDust3r}, \texttt{SceneFromViewsMast3r}, \texttt{SceneFromViewsDepthAnythingV3}, \texttt{SceneFromViewsMvdust3r}, \texttt{SceneFromViewsVggt}, \texttt{SceneFromViewsVggtRobust}, \texttt{SceneFromViewsFast3r}), all inheriting from a common \texttt{SceneFromViewsBase}. This base class implements a unified three-step reconstruction pipeline: \texttt{preprocess\_images()} prepares input images for the specific model, \texttt{infer()} runs model inference, and \texttt{postprocess\_results()} converts raw model output to a standardized \texttt{SceneFromViewsResult} format containing merged point clouds, meshes, camera poses, and optional depth maps or intrinsics.
 
-The module supports both pairwise models (\texttt{DUSt3R}\cite{wang2023dust3r}, \texttt{MASt3R}\cite{leroy2024grounding}) that process image pairs and perform global alignment, as well as multi-view models (\texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MV-DUSt3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, \texttt{Robust VGGT}\cite{vggt_robust}, \texttt{FAST3R}\cite{yang2025fast3r}) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
+The module supports both pairwise models (\texttt{DUSt3R}\cite{wang2023dust3r}, \texttt{MASt3R}\cite{leroy2024grounding}) that are feed-forward per pair and then run global alignment, as well as multi-view models (\texttt{DEPTH\_ANYTHING\_V3}\cite{depthanything3}, \texttt{MV-DUSt3R}\cite{tang2025mv}, \texttt{VGGT}\cite{wang2025vggt}, \texttt{Robust VGGT}\cite{vggt_robust}, \texttt{FAST3R}\cite{yang2025fast3r}) that process multiple views simultaneously in a single forward pass. This modular design enables flexible integration of diverse 3D reconstruction techniques while maintaining a consistent API across different model architectures.
 
 %\clearpage
 \FloatBarrier
@@ -1595,7 +1595,7 @@ evaluate both online and final errors up to the current time.
 \hypertarget{scene-from-views-usage}{%
 \subsection{Scene from Views}\label{scene-from-views-usage}}
 
-The \textit{Scene from Views} module provides a unified interface for end-to-end 3D scene reconstruction from multiple
+The \textit{Scene from Views} module provides a unified interface for feed-forward 3D scene reconstruction from multiple
 views, following a modular factory pattern architecture. The pipeline
 provides a consistent API across different reconstruction models while
 maintaining model-specific optimizations. See the main script
@@ -1604,7 +1604,7 @@ maintaining model-specific optimizations. See the main script
 \begin{itemize}
 \tightlist
 \item
-  End-to-end multi-view reconstruction (poses + fused 3D geometry
+  Feed-forward multi-view reconstruction (poses + fused 3D geometry
   directly from images): \texttt{SceneFromViewsDust3r},
   \texttt{SceneFromViewsMast3r}, \texttt{SceneFromViewsMvdust3r},
   \texttt{SceneFromViewsVggt}, \texttt{SceneFromViewsVggtRobust}, \texttt{SceneFromViewsFast3r}.
@@ -1622,9 +1622,11 @@ maintaining model-specific optimizations. See the main script
 \end{itemize}
 
 Note that \texttt{DUSt3R} and \texttt{MASt3R} are pairwise models: they
-take two images at a time. Multi-view end-to-end reconstruction is
-achieved by running them on many image pairs and performing a global
-alignment / optimization over all pairwise pointmaps.
+take two images at a time. They are feed-forward per pair; multi-view
+reconstruction is then obtained by global alignment / optimization over
+all pairwise pointmaps. \texttt{MV-DUSt3R}, \texttt{VGGT}, and
+\texttt{Fast3R} are multi-view models that process all images
+simultaneously in a single forward pass.
 
 All models return standardized \texttt{SceneFromViewsResult} output
 containing point clouds, meshes, camera poses, depth maps, and
@@ -1870,10 +1872,10 @@ methods}\label{supported-semantic-segmentation-methods}}
   \href{https://arxiv.org/abs/2510.09653}{YOLO}~\cite{sapkota2025ultralytics}: One of the most influential and widely adopted series of models for real-time object detection, that attains an excellent balance
 between high accuracy and inference speed.
 \end{itemize}
-\hypertarget{supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images}{%
-\subsubsection{Supported models for end-to-end inference of 3D scenes
+\hypertarget{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}{%
+\subsubsection{Supported models for feed-forward inference of 3D scenes
 from multiple
-images}\label{supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images}}
+images}\label{supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images}}
 
 \begin{itemize}
 \tightlist

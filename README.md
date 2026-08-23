@@ -1,6 +1,6 @@
 <p align="center"><img src="./images/pyslam-logo.png" height="160"></p>
 
-# pySLAM v2.10.6
+# pySLAM v2.10.7
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**
 
@@ -13,7 +13,7 @@ Author: **[Luigi Freda](https://www.luigifreda.com)**
 - A suite of segmentation models for **[semantic understanding](#semantic-mapping-and-image-segmentation)** of the scene, such as *DeepLabv3*, *Segformer*, *CLIP*, *DETIC*, *EOV-SEG*, *ODISE*, *RFDETR*, *YOLO*, etc.
 - Additional tools for VO (Visual Odometry) and SLAM, with built-in support for both **g2o** and **GTSAM**, along with custom Python bindings for features not available in the original libraries.
 - A modular **sparse-SLAM core**, implemented in **both Python and C++** (with custom pybind11 bindings), allowing users to switch between _high-performance/speed_ and _high-flexibility_ modes. The Python and C++ implementations are interoperable: maps saved by one can be loaded by the other. Further details [here](pyslam/slam/cpp/README.md).
-- A modular pipeline for **end-to-end inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
+- A modular pipeline for **feed-forward inference of 3D scenes from multiple images**. Supports models like *DUSt3R*, *Mast3r*, *MV-DUSt3R*, *VGGT*, *Robust VGGT*, *DepthFromAnythingV3*, and *Fast3R*. Further details [here](pyslam/scene_from_views/README.md).
 - Built-in support for over **[10 dataset types](#datasets)**.
   
 pySLAM serves as a flexible baseline framework to experiment with VO/SLAM techniques, *[local features](#supported-local-features)*, *[descriptor aggregators](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[global descriptors](#supported-global-descriptors-and-local-descriptor-aggregation-methods)*, *[volumetric integration](#volumetric-reconstruction-pipeline)*, *[depth prediction](#depth-prediction)* and *[semantic mapping](#semantic-mapping)*. It allows to explore, prototype and develop VO/SLAM pipelines both in Python and C++. pySLAM is a research framework and a work in progress.
@@ -52,7 +52,7 @@ See the demo **video** for release v2.10.0
 
 <!-- TOC -->
 
-- [pySLAM v2.10.6](#pyslam-v2106)
+- [pySLAM v2.10.7](#pyslam-v2107)
   - [Table of contents](#table-of-contents)
   - [Overview](#overview)
     - [Main Scripts](#main-scripts)
@@ -96,7 +96,7 @@ See the demo **video** for release v2.10.0
     - [Evaluating SLAM](#evaluating-slam)
       - [Run a SLAM evaluation](#run-a-slam-evaluation)
       - [pySLAM performances and comparative evaluations](#pyslam-performances-and-comparative-evaluations)
-    - [End-to-end inference of 3D scenes from multiple image views](#end-to-end-inference-of-3d-scenes-from-multiple-image-views)
+    - [Feed-forward inference of 3D scenes from multiple image views](#feed-forward-inference-of-3d-scenes-from-multiple-image-views)
   - [Supported components and models](#supported-components-and-models)
     - [Supported local features](#supported-local-features)
     - [Supported matchers](#supported-matchers)
@@ -106,7 +106,7 @@ See the demo **video** for release v2.10.0
     - [Supported depth prediction models](#supported-depth-prediction-models)
     - [Supported volumetric mapping methods](#supported-volumetric-mapping-methods)
     - [Supported semantic segmentation methods](#supported-semantic-segmentation-methods)
-    - [Supported models for end-to-end inference of 3D scenes from multiple images](#supported-models-for-end-to-end-inference-of-3d-scenes-from-multiple-images)
+    - [Supported models for feed-forward inference of 3D scenes from multiple images](#supported-models-for-feed-forward-inference-of-3d-scenes-from-multiple-images)
   - [Configuration](#configuration)
     - [Main configuration file](#main-configuration-file)
     - [Datasets](#datasets)
@@ -183,7 +183,7 @@ See the demo **video** for release v2.10.0
 
 * `main_semantic_image_segmentation.py` infers and visualize extracted semantic information on each frame of the selected dataset.
 
-* `main_scene_from_views.py` infers 3D scenes from multiple images using models like DUSt3R, Mast3r, MV-DUSt3R, VGGT, Robust VGGT, DepthFromAnythingV3, and Fast3R (see [here](#end-to-end-inference-of-3d-scenes-from-multiple-image-views)).  
+* `main_scene_from_views.py` infers 3D scenes from multiple images using models like DUSt3R, Mast3r, MV-DUSt3R, VGGT, Robust VGGT, DepthFromAnythingV3, and Fast3R (see [here](#feed-forward-inference-of-3d-scenes-from-multiple-image-views)).  
 
 Other *test/example scripts* are provided in the `test` folder.
 
@@ -763,21 +763,21 @@ When you click the `Draw Ground Truth` button in the GUI (see [here](#slam-gui))
 
 ---
 
-### End-to-end inference of 3D scenes from multiple image views
+### Feed-forward inference of 3D scenes from multiple image views
 
 <p align="center">
   <img src="./images/scene_from_views.png" alt="3D Sparse Semantic Mapping" height="300"/>
 </p>
 
-The folder `pyslam/scene_from_views` implements the `scene_from_views` factory: a **unified interface for end-to-end 3D scene reconstruction from multiple views** with a shared `reconstruct()` pipeline (`preprocess_images()` → `infer()` → `postprocess_results()`), plus optional optimizer post-processing. The API is consistent across models while preserving model-specific optimizations. See the main script `main_scene_from_views.py`.
+The folder `pyslam/scene_from_views` implements the `scene_from_views` factory: a **unified interface for feed-forward 3D scene reconstruction from multiple views** with a shared `reconstruct()` pipeline (`preprocess_images()` → `infer()` → `postprocess_results()`), plus optional optimizer post-processing. The API is consistent across models while preserving model-specific optimizations. See the main script `main_scene_from_views.py`.
 
-- End-to-end multi-view reconstruction (poses + fused 3D geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`.
+- Feed-forward multi-view reconstruction (poses + fused 3D geometry directly from images): `SceneFromViewsDust3r`, `SceneFromViewsMast3r`, `SceneFromViewsMvdust3r`, `SceneFromViewsVggt`, `SceneFromViewsVggtRobust`, `SceneFromViewsFast3r`.
 - Monocular depth pipeline with optional pose/intrinsic outputs when supported by the model variant: `SceneFromViewsDepthAnythingV3`.
 - Global alignment stage for merging views (defaults): `SceneFromViewsDust3r` uses dense alignment; `SceneFromViewsMast3r` uses sparse alignment (both are configurable).
 - Robust view filtering / outlier rejection: `SceneFromViewsVggtRobust` uses anchor-based attention + cosine scoring to reject low-confidence views, then re-runs inference on the survivors.
 - Large-scale reconstruction (designed for 1000+ images in one forward pass): `SceneFromViewsFast3r`.
 
-Note that `DUSt3R` and `MASt3R` are pairwise models: they take two images at a time. Multi-view reconstruction is achieved by running them on many image pairs and performing global alignment/optimization over all pairwise pointmaps. `MV-DUSt3R`, `VGGT`, and `Fast3R` are multi-view models that process all images simultaneously in a single forward pass.
+Note that `DUSt3R` and `MASt3R` are pairwise models: they take two images at a time. They are feed-forward per pair; multi-view reconstruction is then obtained by global alignment/optimization over all pairwise pointmaps. `MV-DUSt3R`, `VGGT`, and `Fast3R` are multi-view models that process all images simultaneously in a single forward pass.
 
 All models return a standardized `SceneFromViewsResult` with consistent field names; optional outputs (meshes, intrinsics, depth maps, confidences) may be `None` depending on the model. The factory pattern allows easy switching between models while maintaining the same interface.
 
@@ -927,7 +927,7 @@ Both monocular and stereo depth prediction models are available. SGBM algorithm 
 - [RF-DETR](https://github.com/roboflow/rf-detr.git): [_"RF-DETR: Neural Architecture Search for Real-Time Detection Transformers"_](https://arxiv.org/abs/2511.09554)
 
 
-### Supported models for end-to-end inference of 3D scenes from multiple images
+### Supported models for feed-forward inference of 3D scenes from multiple images
 
 * [DUSt3R](https://arxiv.org/abs/2312.14132): Geometric 3D Vision Made Easy 
 * [MASt3R](https://arxiv.org/abs/2406.09756): Grounding Image Matching in 3D with MASt3R 

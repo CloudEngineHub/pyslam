@@ -25,7 +25,6 @@ import os
 import glob
 import time
 import csv
-import re
 import ujson as json
 
 from multiprocessing import Process, Queue, Value
@@ -285,6 +284,33 @@ class LiveDataset(Dataset):
         return np.ascontiguousarray(image)
 
 
+def timestamp_from_image_filename(image_file):
+    """Parse a timestamp from an image filename stem, or None if not numeric."""
+    img_name = os.path.splitext(os.path.basename(image_file))[0]
+    try:
+        return float(img_name)
+    except ValueError:
+        return None
+
+
+def folder_image_timestamps(image_file, next_image_file, period, current_timestamp):
+    """Timestamps from image filenames, with fps fallback.
+
+    next_image_file is None on the last frame. current_timestamp is used only
+    when the current filename stem is not numeric.
+    """
+    timestamp = timestamp_from_image_filename(image_file)
+    if timestamp is None:
+        timestamp = current_timestamp + period
+        return timestamp, timestamp + period
+    if next_image_file is None:
+        return timestamp, timestamp + period
+    next_timestamp = timestamp_from_image_filename(next_image_file)
+    if next_timestamp is None:
+        return timestamp, timestamp + period
+    return timestamp, next_timestamp
+
+
 class FolderDataset(Dataset):
     def __init__(
         self,
@@ -342,14 +368,12 @@ class FolderDataset(Dataset):
             else:
                 self._next_timestamp = self._timestamp + self.Ts
         else:
-            img_name = os.path.splitext(os.path.basename(image_file))[0]
-            if img_name.isdigit():
-                # read timestamps from image filename
-                self._timestamp = float(img_name)
-                self._next_timestamp = float(os.path.splitext(os.path.basename(self.listing[self.i + 1]))[0])
-            else:
-                self._timestamp += self.Ts
-                self._next_timestamp = self._timestamp + self.Ts
+            next_image_file = (
+                self.listing[self.i + 1] if self.i + 1 < self.maxlen else None
+            )
+            self._timestamp, self._next_timestamp = folder_image_timestamps(
+                image_file, next_image_file, self.Ts, self._timestamp
+            )
         if img is None:
             raise IOError("error reading file: ", image_file)
         # Increment internal counter.
