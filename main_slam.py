@@ -30,43 +30,6 @@ import multiprocessing
 import torch.multiprocessing as mp
 import platform
 
-from pyslam.config import Config  # , dump_config_to_json
-
-from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
-from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
-
-from pyslam.slam.slam import Slam, SlamState
-from pyslam.slam import PinholeCamera, USE_CPP
-
-from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
-from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
-from pyslam.io.dataset_factory import dataset_factory
-from pyslam.io.dataset_types import SensorType
-from pyslam.io.trajectory_writer import TrajectoryWriter
-
-from pyslam.viz.viewer3D import Viewer3D
-from pyslam.utilities.logging import Printer, LoggerQueue
-from pyslam.utilities.system import force_kill_all_and_exit
-from pyslam.utilities.img_management import ImgWriter
-from pyslam.utilities.evaluation import eval_ate
-from pyslam.utilities.geom_trajectory import find_poses_associations
-from pyslam.utilities.colors import GlColors
-from pyslam.utilities.serialization import SerializableEnumEncoder
-from pyslam.utilities.timer import TimerFps
-from pyslam.viz.cvimage_thread import CvImageViewer
-
-from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
-
-from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
-
-from pyslam.depth_estimation.depth_estimator_factory import (
-    depth_estimator_factory,
-    DepthEstimatorType,
-)
-from pyslam.utilities.depth import img_from_depth, filter_shadow_points
-
-from pyslam.config_parameters import Parameters
-
 from datetime import datetime
 import traceback
 
@@ -84,6 +47,8 @@ datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est):
+    from pyslam.utilities.colors import GlColors
+
     T_est_gt = np.linalg.inv(T_gt_est)
     scale = np.mean([np.linalg.norm(T_est_gt[i, :3]) for i in range(3)])
     R_est_gt = T_est_gt[:3, :3] / scale  # we need a pure rotation to avoid camera scale changes
@@ -97,6 +62,44 @@ def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
 
 
 if __name__ == "__main__":
+    # Keep optional native libraries out of the spawned OpenGL viewer.
+    from pyslam.config import Config  # , dump_config_to_json
+
+    from pyslam.semantics.semantic_mapping_configs import SemanticMappingConfigs
+    from pyslam.semantics.semantic_eval import evaluate_semantic_mapping
+
+    from pyslam.slam.slam_commons import SlamState
+    from pyslam.slam import Slam, camera_from_config, USE_CPP
+
+    from pyslam.viz.slam_plot_drawer import SlamPlotDrawerThread
+    from pyslam.io.ground_truth import groundtruth_factory, is_valid_groundtruth, need_sim3_alignment
+    from pyslam.io.dataset_factory import dataset_factory
+    from pyslam.io.dataset_types import SensorType
+    from pyslam.io.trajectory_writer import TrajectoryWriter
+
+    from pyslam.viz.viewer3D import Viewer3D
+    from pyslam.utilities.logging import Printer, LoggerQueue
+    from pyslam.utilities.system import force_kill_all_and_exit
+    from pyslam.utilities.img_management import ImgWriter
+    from pyslam.utilities.evaluation import eval_ate
+    from pyslam.utilities.geom_trajectory import find_poses_associations
+    from pyslam.utilities.serialization import SerializableEnumEncoder
+    from pyslam.utilities.timer import TimerFps
+    from pyslam.utilities.playback_timing import PlaybackTiming
+    from pyslam.viz.cvimage_thread import CvImageViewer
+
+    from pyslam.local_features.feature_tracker_configs import FeatureTrackerConfigs
+
+    from pyslam.loop_closing.loop_detector_configs import LoopDetectorConfigs
+
+    from pyslam.depth_estimation.depth_estimator_factory import (
+        depth_estimator_factory,
+        DepthEstimatorType,
+    )
+    from pyslam.utilities.depth import img_from_depth, filter_shadow_points
+
+    from pyslam.config_parameters import Parameters
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-c",
@@ -111,7 +114,12 @@ if __name__ == "__main__":
         help="Do not append date to output directory",
     )
     parser.add_argument("--headless", action="store_true", help="Run in headless mode")
+    parser.add_argument("--max-frames", type=int, default=0,
+                        help="Stop after this many processed frames (0: whole sequence)")
+    parser.add_argument("--timing-report", help="Write per-stage playback timings to this JSON file")
     args = parser.parse_args()
+    if args.max_frames < 0:
+        parser.error("max-frames must be nonnegative")
 
     if args.config_path:
         config = Config(args.config_path)  # use the custom configuration path file
@@ -159,7 +167,7 @@ if __name__ == "__main__":
         has_groundtruth and need_sim3_alignment(groundtruth)
     )
 
-    camera = PinholeCamera(config)
+    camera = camera_from_config(config)
     Printer.green(f"Camera: {json.dumps(camera.to_json(), indent=4, cls=SerializableEnumEncoder)}")
 
     # Select your tracker configuration (see the file feature_tracker_configs.py)
@@ -299,6 +307,10 @@ if __name__ == "__main__":
 
     timer_main = TimerFps("Main", is_verbose=False)
     timer_main.start()
+    playback_timing = (PlaybackTiming(args.timing_report, dict(
+        headless=args.headless, cpp_core=USE_CPP, dataset=config.dataset_settings,
+        local_mapping_threaded=Parameters.kLocalMappingOnSeparateThread,
+        loop_closing=Parameters.kUseLoopClosing)) if args.timing_report else None)
 
     do_step = False  # proceed step by step on GUI
     do_reset = False  # reset on GUI
@@ -332,6 +344,8 @@ if __name__ == "__main__":
             if not is_paused or do_step:
 
                 if dataset.is_ok:
+                    if playback_timing:
+                        playback_timing.begin(img_id)
                     print("..................................")
                     img = dataset.getImageColor(img_id)
                     depth = dataset.getDepth(img_id)
@@ -340,6 +354,8 @@ if __name__ == "__main__":
                         if dataset.sensor_type == SensorType.STEREO
                         else None
                     )
+                    if playback_timing:
+                        playback_timing.mark("image_loading")
 
                 if img is not None:
                     timestamp = dataset.getTimestamp()  # get current timestamp
@@ -368,11 +384,17 @@ if __name__ == "__main__":
                                 # cv2.imshow("depth prediction", depth_img)
                                 cv_image_viewer.draw(depth_img, "depth prediction")
 
+                        if playback_timing:
+                            playback_timing.mark("depth_and_setup")
                         slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function
+                        if playback_timing:
+                            playback_timing.mark("tracking")
 
                         # 3D display (map display)
                         if viewer3D:
                             viewer3D.draw_slam_map(slam)
+                        if playback_timing:
+                            playback_timing.mark("map_viewer_submit")
 
                         if not args.headless:
                             is_draw_features_with_radius = viewer3D.is_draw_features_with_radius()
@@ -381,6 +403,8 @@ if __name__ == "__main__":
                                 with_level_radius=is_draw_features_with_radius,
                                 trail_max_length=Parameters.kMaxFeatureTrailLength,
                             )
+                            if playback_timing:
+                                playback_timing.mark("feature_trails")
                             timer_main.refresh()
                             fps = timer_main.get_fps()
                             fps_text = f" fps: {fps:.1f}" if USE_CPP else ""
@@ -388,10 +412,14 @@ if __name__ == "__main__":
                             # 2D display (image display)
                             # cv2.imshow("Camera", img_draw)
                             cv_image_viewer.draw(img_draw, "Camera")
+                        if playback_timing:
+                            playback_timing.mark("image_viewer_submit")
 
                         # draw 2d plots
                         if plot_drawer:
                             plot_drawer.draw(img_id)
+                        if playback_timing:
+                            playback_timing.mark("plots_submit")
 
                     if (
                         online_trajectory_writer is not None
@@ -405,6 +433,8 @@ if __name__ == "__main__":
                     img_id += 1
                     num_frames += 1
                 else:
+                    if playback_timing:
+                        playback_timing.discard()
                     time.sleep(0.1)  # img is None
                     # Printer.yellow("sleeping for 0.1 seconds - img is None")
                     if args.headless:
@@ -477,6 +507,8 @@ if __name__ == "__main__":
                 do_reset = viewer3D.reset() and do_reset == False
                 is_viewer_closed = viewer3D.is_closed()
 
+            if playback_timing:
+                playback_timing.mark("controls_and_output")
             if not args.headless and img is not None:
                 processing_duration = time.time() - time_start
                 delta_time_sleep = (
@@ -485,14 +517,28 @@ if __name__ == "__main__":
                 if delta_time_sleep > 1e-3:
                     time.sleep(delta_time_sleep)
                     # Printer.yellow(f"sleeping for {delta_time_sleep} seconds - frame duration > processing duration")
+            if playback_timing:
+                playback_timing.mark("pacing")
+                playback_timing.finish()
+                if img is not None and num_frames % 100 == 0:
+                    playback_timing.write()
+
+            if args.max_frames and num_frames >= args.max_frames:
+                break
 
             if key == "q" or (key_cv == ord("q") or key_cv == 27):  # press 'q' or ESC for quitting
                 break
 
     except KeyboardInterrupt:
+        if playback_timing:
+            playback_timing.write()
         Printer.yellow("\nCTRL+C detected. Shutting down ...\n")
         force_kill_all_and_exit(verbose=False)
         sys.exit(0)
+
+    finally:
+        if playback_timing:
+            playback_timing.write()
 
     # exit from the main loop
 

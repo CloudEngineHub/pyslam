@@ -15,7 +15,7 @@ set(WITH_PYTHON_INTERP_CHECK OFF CACHE BOOL "Checking python interpreter") # to 
 set(WITH_MARCH_NATIVE ON CACHE BOOL "Build with -march=native")
 
 set(PYSLAM_ROOT ${PROJECT_SOURCE_DIR}/..)
-set(PYSLAM_SLAM_CPP_SRC ${PYSLAM_ROOT}/pyslam/slam/cpp)
+set(PYSLAM_SLAM_CPP_SRC ${PYSLAM_ROOT}/cpp/core/slam)
 
 # Set base optimization flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -DNDEBUG")
@@ -210,9 +210,22 @@ include_directories(casters)
 # Add pyslam_utils module
 #=======================================
 
-pybind11_add_module(pyslam_utils utils/utils_module.cpp utils/utils.cpp)
+pybind11_add_module(pyslam_utils modules/utils/utils_module.cpp modules/utils/utils.cpp)
 target_link_libraries(pyslam_utils PRIVATE 
     ${OpenCV_LIBS}
+)
+
+#=======================================
+# Add data_thread_reader module
+#=======================================
+
+find_package(Threads REQUIRED)
+pybind11_add_module(data_thread_reader
+    modules/data_thread_reader/data_thread_reader_module.cpp
+    modules/data_thread_reader/image_prefetcher.cpp)
+target_link_libraries(data_thread_reader PRIVATE
+    ${OpenCV_LIBS}
+    Threads::Threads
 )
 
 #=======================================
@@ -220,15 +233,15 @@ target_link_libraries(pyslam_utils PRIVATE
 #=======================================
 
 add_library(sim3solver_lib STATIC 
-    solvers/Sim3Solver.cpp 
-    solvers/Sim3PointRegistrationSolver.cpp 
-    solvers/Random.cpp)
+    modules/solvers/Sim3Solver.cpp
+    modules/solvers/Sim3PointRegistrationSolver.cpp
+    modules/solvers/Random.cpp)
 target_link_libraries(sim3solver_lib PRIVATE 
     ${OpenCV_LIBS}
 )
 
 pybind11_add_module(sim3solver 
-solvers/sim3solver_module.cpp)
+modules/solvers/sim3solver_module.cpp)
 target_link_libraries(sim3solver PRIVATE sim3solver_lib)
 
 #=======================================
@@ -236,15 +249,15 @@ target_link_libraries(sim3solver PRIVATE sim3solver_lib)
 #=======================================
 
 add_library(pnpsolver_lib STATIC 
-    solvers/PnPsolver.cpp 
-    solvers/MLPnPsolver.cpp 
-    solvers/Random.cpp)
+    modules/solvers/PnPsolver.cpp
+    modules/solvers/MLPnPsolver.cpp
+    modules/solvers/Random.cpp)
 target_link_libraries(pnpsolver_lib PRIVATE 
     ${OpenCV_LIBS}
 )
 
 pybind11_add_module(pnpsolver 
-solvers/pnpsolver_module.cpp)
+modules/solvers/pnpsolver_module.cpp)
 target_link_libraries(pnpsolver PRIVATE pnpsolver_lib)
 
 #=======================================
@@ -252,9 +265,9 @@ target_link_libraries(pnpsolver PRIVATE pnpsolver_lib)
 #=======================================
 
 add_library(volumetric_lib STATIC 
-    volumetric/camera_frustrum.cpp
-    volumetric/bounding_boxes_3d.cpp
-    volumetric/bounding_boxes_2d.cpp)
+    modules/volumetric/camera_frustrum.cpp
+    modules/volumetric/bounding_boxes_3d.cpp
+    modules/volumetric/bounding_boxes_2d.cpp)
 target_link_libraries(volumetric_lib PRIVATE 
     ${Open3D_LIBRARIES}
     ${TBB_LINK_LIBS}
@@ -269,7 +282,7 @@ if(Qhull_FOUND AND QHULL_LINK_LIBS)
 endif()
 
 pybind11_add_module(volumetric 
-volumetric/volumetric_module.cpp)
+modules/volumetric/volumetric_module.cpp)
 if(TBB_FOUND)
     target_compile_definitions(volumetric PRIVATE TBB_FOUND)
 endif()
@@ -283,7 +296,7 @@ target_link_libraries(volumetric PRIVATE volumetric_lib)
 #=======================================
 
 add_library(glutils_lib STATIC 
-    glutils/glutils_drawing.cpp)
+    modules/glutils/glutils_drawing.cpp)
 target_link_libraries(glutils_lib PRIVATE 
     ${OPENGL_LIBRARIES}
     volumetric_lib
@@ -291,8 +304,8 @@ target_link_libraries(glutils_lib PRIVATE
 
 
 pybind11_add_module(glutils 
-    glutils/glutils_module.cpp     
-    glutils/glutils_bindings.cpp)
+    modules/glutils/glutils_module.cpp
+    modules/glutils/glutils_bindings.cpp)
 target_link_libraries(glutils PRIVATE glutils_lib)
 
 #=======================================
@@ -300,7 +313,7 @@ target_link_libraries(glutils PRIVATE glutils_lib)
 #=======================================
 
 pybind11_add_module(trajectory_tools 
-trajectory/trajectory_tools_module.cpp)
+modules/trajectory/trajectory_tools_module.cpp)
 target_link_libraries(trajectory_tools PRIVATE
 )
 
@@ -309,7 +322,7 @@ target_link_libraries(trajectory_tools PRIVATE
 #=======================================
 
 add_library(color_utils_lib STATIC 
-    color_utils/color_utils.cpp)
+    modules/color_utils/color_utils.cpp)
 target_link_libraries(color_utils_lib PRIVATE 
     ${OpenCV_LIBS}
 )
@@ -319,7 +332,7 @@ target_include_directories(color_utils_lib PRIVATE
 )
 
 pybind11_add_module(color_utils 
-color_utils/color_utils_module.cpp)
+modules/color_utils/color_utils_module.cpp)
 target_link_libraries(color_utils PRIVATE color_utils_lib)
 # Include directory for color_helpers.h
 target_include_directories(color_utils PRIVATE
@@ -337,5 +350,88 @@ target_include_directories(color_utils PRIVATE
 #=======================================
 
 pybind11_add_module(hamming 
-hamming/hamming_module.cpp)
+modules/hamming/hamming_module.cpp)
 target_link_libraries(hamming PRIVATE)
+
+#=======================================
+# Camera models used by the Python core.
+# Formulas stay in cpp/core/slam/camera_model_math.h. The camera type lives in
+# one shared library so the factor modules share its type info. g2o and gtsam
+# are separate modules: no translation unit includes both, and importing
+# camera_models does not load either optimizer library.
+#=======================================
+
+set(CAMERA_MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/camera_models")
+
+add_library(camera_model_core SHARED modules/camera_models/camera_model.cpp)
+target_include_directories(camera_model_core PUBLIC
+    ${CAMERA_MODELS_DIR}
+    ${PYSLAM_SLAM_CPP_SRC}
+    ${EIGEN3_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(camera_model_core PUBLIC ${OpenCV_LIBS})
+set_target_properties(camera_model_core PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+
+function(camera_models_module_rpath target)
+    set_target_properties(${target} PROPERTIES
+        BUILD_RPATH "\$ORIGIN"
+        INSTALL_RPATH "\$ORIGIN")
+endfunction()
+
+pybind11_add_module(camera_models modules/camera_models/camera_models_module.cpp)
+target_include_directories(camera_models PRIVATE
+    ${CAMERA_MODELS_DIR}
+    ${PYSLAM_SLAM_CPP_SRC}
+    ${EIGEN3_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(camera_models PRIVATE camera_model_core ${OpenCV_LIBS})
+camera_models_module_rpath(camera_models)
+
+set(G2O_ROOT "${PYSLAM_ROOT}/thirdparty/g2opy")
+set(G2O_INCLUDE_DIRS "${G2O_ROOT};${G2O_ROOT}/build")
+file(GLOB CAMERA_MODELS_G2O_LIBRARIES "${G2O_ROOT}/lib/*.a")
+list(FILTER CAMERA_MODELS_G2O_LIBRARIES EXCLUDE REGEX "g2o.cython.*")
+if(CAMERA_MODELS_G2O_LIBRARIES)
+    pybind11_add_module(camera_models_g2o modules/camera_models/camera_models_g2o_module.cpp)
+    target_include_directories(camera_models_g2o PRIVATE
+        ${CAMERA_MODELS_DIR}
+        ${PYSLAM_SLAM_CPP_SRC}
+        ${G2O_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(camera_models_g2o PRIVATE
+        camera_model_core
+        ${CAMERA_MODELS_G2O_LIBRARIES}
+        ${OpenCV_LIBS})
+    camera_models_module_rpath(camera_models_g2o)
+else()
+    message(WARNING "camera_models_g2o was not built (g2o not found).")
+endif()
+
+set(GTSAM_ROOT "${PYSLAM_ROOT}/thirdparty/gtsam_local")
+set(GTSAM_DIR "${GTSAM_ROOT}/install/lib/cmake/GTSAM")
+find_package(GTSAM QUIET CONFIG)
+set(GTSAM_FACTORS_INCLUDE_DIRS "${PYSLAM_ROOT}/thirdparty/gtsam_factors/include")
+if(GTSAM_FOUND)
+    pybind11_add_module(camera_models_gtsam modules/camera_models/camera_models_gtsam_module.cpp)
+    target_include_directories(camera_models_gtsam PRIVATE
+        ${CAMERA_MODELS_DIR}
+        ${PYSLAM_SLAM_CPP_SRC}
+        ${GTSAM_INCLUDE_DIR}
+        ${GTSAM_FACTORS_INCLUDE_DIRS}
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS})
+    target_link_directories(camera_models_gtsam PRIVATE "${GTSAM_ROOT}/install/lib")
+    target_link_libraries(camera_models_gtsam PRIVATE camera_model_core gtsam ${OpenCV_LIBS})
+    set_target_properties(camera_models_gtsam PROPERTIES
+        BUILD_RPATH "\$ORIGIN;${GTSAM_ROOT}/install/lib"
+        INSTALL_RPATH "\$ORIGIN;${GTSAM_ROOT}/install/lib")
+    if(NOT APPLE)
+        # libgtsam has no RPATH of its own: only DT_RPATH (not DT_RUNPATH) lets the loader
+        # resolve its libmetis-gtsam dependency without importing the gtsam package first.
+        target_link_options(camera_models_gtsam PRIVATE "-Wl,--disable-new-dtags")
+    endif()
+else()
+    message(WARNING "camera_models_gtsam was not built (gtsam not found).")
+endif()
